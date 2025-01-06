@@ -15,3 +15,14 @@ language = "nodejs"
 run = ["node", "index.js"]
 deploymentTarget = "cloudrun"
 ignorePorts = false
+
+[workflows]
+
+[[workflows.workflow]]
+name = "restart"
+mode = "sequential"
+author = 38724954
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node index.js"

@@ -131,3 +131,8 @@ dist
 
 # Replit debugger
 .breakpoints
+
+temp/
+baileys_store.json
+generated-icon.png
+groups.json

@@ -31,11 +31,11 @@
 ## How to Deploy on Panel
 
 To deploy **SPARKS_MD_LITE** on your panel, follow these steps:
-
-1. **Click New File** on your panel interface.
-2. **Name the file** `index.js` (as in the panel startup script).
-3. **Paste the code below** into the file and **change all the variable names** accordingly (like `BOT_NUMBER`, `SESSION_ID`, etc.).
-4. **Save File and start Server✔️💖👍**
+1. **Click [HERE](https://sparksmd.duckdns.org/pair) To get your `SESSION_ID`.**
+2. **Click New File** on your panel interface.
+3. **Name the file** `index.js` (as in the panel startup script).
+4. **Paste the code below** into the file and **change all the variable names** accordingly (like `BOT_NUMBER`, `SESSION_ID`, etc.).
+5. **Save File and start Server✔️💖👍**
 
 ```javascript
 const { spawnSync, spawn } = require('child_process');

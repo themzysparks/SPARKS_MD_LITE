@@ -28,46 +28,168 @@
 
 ---
 
-## Installation
+## How to Deploy on Panel
 
-### Prerequisites
+To deploy **SPARKS_MD_LITE** on your panel, follow these steps:
 
-To run **SPARKS_MD_LITE**, you need the following:
+1. **Click New File** on your panel interface.
+2. **Name the file** `index.js` (as in the panel startup script).
+3. **Paste the code below** into the file and **change all the variable names** accordingly (like `BOT_NUMBER`, `SESSION_ID`, etc.).
+4. **Save File and start Server✔️💖👍**
 
-- **Node.js** (version 14 or higher)
-- **WhatsApp Web**: For interaction with WhatsApp messages.
-- **npm** or **yarn** for package management.
+```javascript
+const { spawnSync, spawn } = require('child_process');
+const { existsSync, writeFileSync } = require('fs');
+const path = require('path');
 
-### Steps
+// Define your configuration variables
+const BOT_NUMBER = '2349130815781'; // Example value
+const SESSION_ID = 'session ID here'; // Example value
+const PREFIX = '#'; // Example value
+const DOWNLOAD_LIMIT = 10; // Example value
 
-1. Clone this repository to your local machine:
-    ```bash
-    git clone https://github.com/yourusername/SPARKS_MD_LITE.git
-    ```
+const sparksMdLiteDir = 'sparks_md_lite';
 
-2. Install the required dependencies:
-    ```bash
-    cd SPARKS_MD_LITE
-    npm install
-    ```
+// Retry logic variables
+let nodeRestartCount = 0;
+const maxNodeRestarts = 5;
+const restartWindow = 30000; // 30 seconds
+let lastRestartTime = Date.now();
 
-3. Set up the configuration:
-    - Create a `config.json` file in the root directory.
-    - Add your WhatsApp credentials and other necessary settings.
+// Function to run a command with fallback between yarn and npm
+function runCommandWithFallback(command, args, cwd) {
+  let result = spawnSync(command, args, { cwd, stdio: 'inherit' });
 
-4. Start the bot:
-    ```bash
-    npm start
-    ```
+  if (result.error || result.status !== 0) {
+    console.error(`${command} failed, trying npm...`);
+    // Fallback to npm if Yarn fails
+    const fallbackCommand = command === 'yarn' ? 'npm' : 'yarn';
+    result = spawnSync(fallbackCommand, args, { cwd, stdio: 'inherit' });
+  }
 
----
+  if (result.error || result.status !== 0) {
+    console.error(`${command} and npm both failed. Exiting...`);
+    process.exit(1);
+  }
+}
 
-## Usage
+// Function to start the Node.js app
+function startNode() {
+  const child = spawn('node', ['index.js'], { cwd: sparksMdLiteDir, stdio: 'inherit' });
 
-Once the bot is running, it will automatically listen for messages in your WhatsApp groups and perform auto-tagging as configured.
+  child.on('exit', (code) => {
+    if (code !== 0) {
+      const currentTime = Date.now();
+      if (currentTime - lastRestartTime > restartWindow) {
+        nodeRestartCount = 0;
+      }
+      lastRestartTime = currentTime;
+      nodeRestartCount++;
 
-- You can configure auto-tagging commands based on your needs.
-- The bot will react to commands and automatically tag users when triggered.
+      if (nodeRestartCount > maxNodeRestarts) {
+        console.error('Node.js process is restarting continuously. Stopping retries...');
+        return;
+      }
+      console.log(`Node.js process exited with code ${code}. Restarting... (Attempt ${nodeRestartCount})`);
+      startNode();
+    }
+  });
+}
+
+// Function to start PM2
+function startPm2() {
+  const pm2 = spawn('yarn', ['pm2', 'start', 'index.js', '--name', 'sparks_md_lite', '--attach'], {
+    cwd: sparksMdLiteDir,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  let restartCount = 0;
+  const maxRestarts = 5;
+
+  pm2.on('exit', (code) => {
+    if (code !== 0) {
+      console.log('yarn pm2 failed to start, falling back to node...');
+      startNode();
+    }
+  });
+
+  pm2.on('error', (error) => {
+    console.error(`yarn pm2 error: ${error.message}`);
+    startNode();
+  });
+
+  // Check for infinite restarts
+  if (pm2.stderr) {
+    pm2.stderr.on('data', (data) => {
+      const output = data.toString();
+      if (output.includes('restart')) {
+        restartCount++;
+        if (restartCount > maxRestarts) {
+          console.log('yarn pm2 is restarting indefinitely, stopping yarn pm2 and starting node...');
+          spawnSync('yarn', ['pm2', 'delete', 'sparks_md_lite'], { cwd: sparksMdLiteDir, stdio: 'inherit' });
+          startNode();
+        }
+      }
+    });
+  }
+
+  if (pm2.stdout) {
+    pm2.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log(output);
+      if (output.includes('online')) {
+        restartCount = 0;
+      }
+    });
+  }
+}
+
+// Function to install dependencies using yarn or npm
+function installDependencies() {
+  console.log('Installing dependencies...');
+  runCommandWithFallback('yarn', ['install'], sparksMdLiteDir);
+}
+
+// Function to install PM2 globally using yarn or npm
+function installPm2() {
+  runCommandWithFallback('yarn', ['global', 'add', 'pm2'], null);
+}
+
+// Function to clone the repository
+function cloneRepository() {
+  console.log('Cloning the repository...');
+  const cloneResult = spawnSync('git', ['clone', 'https://github.com/themzysparks/SPARKS_MD_LITE.git', sparksMdLiteDir], {
+    stdio: 'inherit',
+  });
+
+  if (cloneResult.error) {
+    throw new Error(`Failed to clone the repository: ${cloneResult.error.message}`);
+  }
+
+  const envFilePath = path.join(sparksMdLiteDir, '.env');
+  try {
+    console.log('Writing to .env...');
+    writeFileSync(envFilePath, `BOT_NUMBER=${BOT_NUMBER}\nSESSION_ID=${SESSION_ID}\nPREFIX=${PREFIX}\nDOWNLOAD_LIMIT=${DOWNLOAD_LIMIT}`);
+  } catch (err) {
+    throw new Error(`Failed to write to .env: ${err.message}`);
+  }
+
+  installDependencies();
+}
+
+// Check if the directory exists
+if (!existsSync(sparksMdLiteDir)) {
+  cloneRepository();
+} else {
+  installDependencies();
+}
+
+// Install PM2 if not already installed globally
+installPm2();
+
+// Start the app with PM2
+startPm2();
+```
 
 ---
 
